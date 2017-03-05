@@ -25,7 +25,7 @@ using namespace std;
 #include "rdt_sender.h"
 #include "rdt_packetctl.h"
 
-#define DEBUG_SENDER
+//#define DEBUG_SENDER
 #ifdef DEBUG_SENDER
 #define DPRINTF(fmt, ...) \
     do { fprintf(stderr, "Sender: " fmt, ## __VA_ARGS__); } while(0)
@@ -108,6 +108,8 @@ static int send_fill_window() {
 
 static int get_first_waiting_ack_seq_id() {
     packet *pkt = on_air_list.front();
+
+    if (!pkt) return -1;
     return pkt_get_seq_id(pkt);
 }
 
@@ -135,12 +137,14 @@ void Sender_FromUpperLayer(struct message *msg)
     int maxpayload_size = RDT_PKTSIZE - header_size;
 
     int remain_size = msg->size;
+    int cursor = 0;
 
     DPRINTF("receive msg from upper layer, msg size %d\n", msg->size);
     while (remain_size > 0) {
-        packet *pkt = make_pkt_data(msg, curr_seq_id);
+        packet *pkt = make_pkt_data(msg, curr_seq_id, cursor);
         curr_seq_id++;
         remain_size -= maxpayload_size;
+        cursor += maxpayload_size;
         pkt_add_to_sender_buffer(pkt);
         DPRINTF("add pkt to buffer, seq_id is %d\n", pkt_get_seq_id(pkt));
     }
@@ -152,6 +156,7 @@ void Sender_FromUpperLayer(struct message *msg)
    sender */
 void Sender_FromLowerLayer(struct packet *pkt)
 {
+    ASSERT(pkt);
     if (!pkt_is_valid(pkt)) {
         DPRINTF("receive invalid pkt\n");
         return;
@@ -161,10 +166,16 @@ void Sender_FromLowerLayer(struct packet *pkt)
     }
 
     int seq_id = pkt_get_seq_id(pkt);
-    if (seq_id != get_first_waiting_ack_seq_id()) {
+    int first_waiting_ack_seq_id = get_first_waiting_ack_seq_id();
+    if (seq_id > first_waiting_ack_seq_id) {
         DPRINTF("receive ack %d, expect ack %d, need resend\n",
-                seq_id, get_first_waiting_ack_seq_id());
+                seq_id, first_waiting_ack_seq_id);
         resend_all_from_on_air_list();
+        return;
+    }
+    else if (seq_id < first_waiting_ack_seq_id) {
+        DPRINTF("receive ack %d, expect ack %d, ignore\n",
+                seq_id, first_waiting_ack_seq_id);
         return;
     }
     else {
@@ -182,6 +193,11 @@ void Sender_FromLowerLayer(struct packet *pkt)
 /* event handler, called when the timer expires */
 void Sender_Timeout()
 {
+    int first_waiting_ack_seq_id = get_first_waiting_ack_seq_id();
+    if (first_waiting_ack_seq_id<0) {
+        DPRINTF("sender time out, but not waiting ack, ignore\n");
+        return;
+    }
     DPRINTF("sender time out while waiting for ack %d\n",
                 get_first_waiting_ack_seq_id());
     resend_all_from_on_air_list();

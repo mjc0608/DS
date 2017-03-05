@@ -1,3 +1,11 @@
+/* the pkt is structured as follow:
+ * |<----2---->|<----1---->|<----1---->|<----4---->|<----120---->|
+ * |hash_value |  ack/nak  | data_size |   seq_id  |    data     |
+ * if byte 4-8 is 0x00, it's not uesd; else if it's 0x0f, it's ack;
+ * else if it's 0xff, it's nak
+ * currently nak is not used, keep it for futrue extension
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -8,31 +16,35 @@
 #include "rdt_receiver.h"
 #include "rdt_packetctl.h"
 
+//#define DEBUG_PKTCTL
+#ifdef DEBUG_PKTCTL
+#define DPRINTF(fmt, ...) \
+    do { fprintf(stderr, "PKTCTL: " fmt, ## __VA_ARGS__); } while(0)
+#else
+#define DPRINTF(fmt, ...) \
+    do { } while(0)
+#endif
+
+
 /* hashing to 16bit value */
 static uint16_t hash_to_16bit(void *addr, int data_bytes) {
     uint16_t *p = (uint16_t*)addr;
     uint16_t hash_result = 0;
 
     for (int i=0; i<data_bytes/2; i++) {
-        hash_result += p[i];
+        hash_result ^= p[i];
     }
 
-    return (~hash_result)+1;
+    DPRINTF("hash_value: %d\n", hash_result);
+    return hash_result;
 }
 
 /* make a packet with a packet */
-/* the pkt is structured as follow:
- * |<----2---->|<----1---->|<----1---->|<----4---->|<----120---->|
- * |hash_value |  ack/nak  | data_size |   seq_id  |    data     |
- * if byte 4-8 is 0x00, it's not uesd; else if it's 0x0f, it's ack;
- * else if it's 0xff, it's nak
- */
-packet* make_pkt_data(message* mess, int seq_id) {
+packet* make_pkt_data(message* mess, int seq_id, int cursor) {
     packet *pkt = new packet;
     memset(pkt, 0, RDT_PKTSIZE);
     char *pkt_ptr = pkt->data;
 
-    int cursor = seq_id * RDT_PKT_DATA_SIZE;
     int remain_data_size = mess->size - cursor;
     uint8_t data_size = remain_data_size > RDT_PKT_DATA_SIZE
                         ? RDT_PKT_DATA_SIZE : (uint8_t)remain_data_size;
@@ -90,13 +102,15 @@ packet* make_pkt_nak(int seq_id) {
 
 bool pkt_is_valid(packet* pkt) {
     uint16_t *pkt_ptr = (uint16_t*)pkt->data;
-    int sum = 0;
+    int hash = 0;
+
+    DPRINTF("hash_value: %d\n", *(uint16_t*)pkt->data);
 
     for (int i=0; i<RDT_PKTSIZE/2; i++) {
-        sum += pkt_ptr[i];
+        hash ^= pkt_ptr[i];
     }
 
-    if (sum==0) return true;
+    if (hash==0) return true;
     else return false;
 }
 

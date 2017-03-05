@@ -25,10 +25,10 @@ using namespace std;
 #include "rdt_receiver.h"
 #include "rdt_packetctl.h"
 
-#define DEBUG_RECEIVER
-#ifdef DEBUG_SENDER
+//#define DEBUG_RECEIVER
+#ifdef DEBUG_RECEIVER
 #define DPRINTF(fmt, ...) \
-    do { fprintf(stderr, "Sender: " fmt, ## __VA_ARGS__); } while(0)
+    do { fprintf(stderr, "Receiver: " fmt, ## __VA_ARGS__); } while(0)
 #else
 #define DPRINTF(fmt, ...) \
     do { } while(0)
@@ -54,6 +54,12 @@ void Receiver_Final()
     fprintf(stdout, "At %.2fs: receiver finalizing ...\n", GetSimulationTime());
 }
 
+static void send_ack_to_sender(int seq_id) {
+    packet *ack = make_pkt_ack(seq_id);
+    Receiver_ToLowerLayer(ack);
+    delete ack;
+}
+
 /* event handler, called when a packet is passed from the lower layer at the 
    receiver */
 void Receiver_FromLowerLayer(struct packet *pkt)
@@ -64,15 +70,23 @@ void Receiver_FromLowerLayer(struct packet *pkt)
     }
 
     int seq_id = pkt_get_seq_id(pkt);
-    if (seq_id != curr_seq_id) {
-        DPRINTF("receive pkt %d, expect pkt %d, ignore\n");
+    if (seq_id > curr_seq_id) {
+        DPRINTF("receive pkt %d, expect pkt %d, ignore\n", seq_id, curr_seq_id);
+        return;
+    }
+    else if (seq_id < curr_seq_id) {
+        DPRINTF("receive pkt %d, expect pkt %d, an ack loss might happen, resend ack\n", seq_id, curr_seq_id);
+        send_ack_to_sender(seq_id);
         return;
     }
 
-    DPRINTF("receive pkt %d, send to upper\n");
+    DPRINTF("receive pkt %d, send to upper and send ack\n", curr_seq_id);
+    send_ack_to_sender(curr_seq_id);
+
     message *msg = pkt_to_message(pkt);
     Receiver_ToUpperLayer(msg);
     delete msg;
+    curr_seq_id++;
 
     return;
 }

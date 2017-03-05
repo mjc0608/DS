@@ -19,7 +19,7 @@
 #define RDT_WINDOW_SIZE 10
 
 
-packet* make_pkt_data(message* mess, int seq_id);
+packet* make_pkt_data(message* mess, int seq_id, int cursor);
 packet* make_pkt_ack(int seq_id);
 packet* make_pkt_nak(int seq_id);
 bool pkt_is_valid(packet* pkt);
