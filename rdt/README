@@ -1,0 +1,14 @@
+Student ID: 5140379041
+Name: Jiacheng Ma
+Email: mjc0608@sjtu.edu.cn
+
+Design:
+Use Go Back N approach. When a packet is time out, the sender will send this packet and all packet that is transmitting. The sender has a wait-to-send buffer and a sending list. New message from upper layer will be splited into packets, while at the same time the header will be added into the packet. This packet will be inserted into wait-to-send buffer. If the sending list has a number of packet that is less than N, it will pop some packets from the buffer and add it into the list, and put them to lower layer. The time out procedure is simplified that, instead of set a time-out for every packet, in this design, only the first sent packet has a timer. When the packet's ack is received it will reset the time for the next packet, if the ack is loss because the timer report a time out, the sender will send all packets in the sending list.
+
+The packet is arranged as follow:
+the pkt is structured as follow:
+|<----2---->|<----1---->|<----1---->|<----4---->|<----120---->|
+|hash_value |  ack/nak  | data_size |   seq_id  |    data     |
+If byte 4-8 is 0x00, it's not uesd; else if it's 0x0f, it's ack; else if it's 0xff, it's nak. Currently, nak is not used, just keep it for futrue extension.
+
+Two files are added. rdt_packetctl.h and rdt_packetctl.cc provide some useful functions that is used to create or operate on a packet, or transfer packet and message to each other.
