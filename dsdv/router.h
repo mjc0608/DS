@@ -30,12 +30,13 @@ private:
     uint64_t curr_seq_id;
     uint16_t port;
     string file;
+    string name;
     vector<Peer> peers;
     vector<Route> routes;
 
-    char* make_boardcast_message();
+    string make_boardcast_message();
     void read_file_and_set_peers();
-
+    void send_to_port(uint16_t prt, char* msg, int len);
 };
 
 #endif
