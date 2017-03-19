@@ -4,8 +4,11 @@
 #include <cinttypes>
 #include <string>
 #include <vector>
+#include <map>
 #include "util.h"
 using namespace std;
+
+#define BUFMAX 1024
 
 struct Peer {
     string name;
@@ -13,10 +16,14 @@ struct Peer {
     double cost;
 };
 
-struct Route {
-    string router_from;
-    string router_to;
+struct Link {
     double cost;
+    string peer_to;
+};
+
+struct Routes {
+    uint64_t seq_id;
+    vector<Link> links;
 };
 
 class Router {
@@ -32,11 +39,12 @@ private:
     string file;
     string name;
     vector<Peer> peers;
-    vector<Route> routes;
+    map<string, Routes> peer_routes;
 
     string make_boardcast_message();
     void read_file_and_set_peers();
     void send_to_port(uint16_t prt, char* msg, int len);
+    void deal_with_comein_msg(char *msg);
 };
 
 #endif

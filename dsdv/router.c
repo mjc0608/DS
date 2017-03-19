@@ -47,7 +47,41 @@ string Router::make_boardcast_message() {
 }
 
 void Router::listen() {
+    int socket_fd;
+    struct sockaddr_in listen_addr;
+    char msg[BUFMAX];
+    int bytes;
 
+
+    socket_fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    bzero(&listen_addr);
+
+    listen_addr.sin_family = AF_INET;
+    listen_addr.sin_addr.s_addr = htonl(INADDR_ANY);
+    listen_addr.sin_port = htons(port);
+
+    bind(socket_fd, (struct sockaddr_in*)&listen_addr, sizeof(listen_addr));
+
+    for (;;) {
+        bzero(&msg, sizeof(msg));
+        bytes = recv(socket_fd, msg, BUFMAX, 0);
+
+        printf("receive msg: %s\n", msg);
+
+        deal_with_comein_msg(msg);
+    }
+}
+
+void Router::deal_with_comein_msg(char* msg) {
+    stringstream ss;
+    ss.str(msg);
+    
+    uint64_t seq_id;
+    int size;
+    string name;
+
+    ss >> seq_id >> size >> name;
+    if (peer_routes.count(name)==0) 
 }
 
 void Router::boardcast() {
@@ -67,7 +101,7 @@ void Router::send_to_port(uint16_t prt, char* msg, int len) {
 
     bzero(&target_addr, sizeof(target_addr));
     target_addr.sin_family = AF_INET;
-    target_addr.sin_port = htons(port);
+    target_addr.sin_port = htons(prt);
     target_addr.sin_addr.s_addr = inet_addr("127.0.0.1");
 
     inet_pton(AF_INET, "127.0.0.1", &target_addr.sin_addr);
